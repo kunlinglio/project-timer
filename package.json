@@ -157,7 +157,7 @@
             "type": "boolean",
             "default": true,
             "order": 1,
-            "definition": "Whether show warning message when opening a multi-root workspace."
+            "description": "Whether show warning message when opening a multi-root workspace."
           }
         }
       }

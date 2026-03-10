@@ -2,6 +2,10 @@
 
 All notable changes to the "Project Timer" extension will be documented in this file.
 
+## [Unreleased]
+### Fixed
+- Fix wrong displayed description of `project-timer.multiRootWorkspace.warningMessage.enable`.
+
 ## [0.5.0] - 2026-03-04
 ### Added
 - Selection `Ok` and `Don't show again` to multi-root workspace warning message.
