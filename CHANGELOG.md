@@ -6,6 +6,9 @@ All notable changes to the "Project Timer" extension will be documented in this 
 ### Fixed
 - Fix wrong displayed description of `project-timer.multiRootWorkspace.warningMessage.enable`.
 
+### Added
+- Added support of VS Code remote window (e.g. Remote SSH, Dev Containers).
+
 ## [0.5.0] - 2026-03-04
 ### Added
 - Selection `Ok` and `Don't show again` to multi-root workspace warning message.

@@ -25,6 +25,9 @@
     "time-tracking",
     "metrics"
   ],
+  "extensionKind": [
+    "workspace"
+  ],
   "extensionDependencies": [
     "vscode.git"
   ],
