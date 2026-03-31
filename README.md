@@ -3,7 +3,7 @@
 Project Timer is a lightweight VS Code extension that tracks the time you spend on your projects. It provides detailed insights into your productivity by analyzing your coding activity by dates, programming languages and specific files.
 
 <div align="center">
-    <img src="./resources/demo.gif" alt="demo" style="width: 600px">
+    <img src="./assets/demo.gif" alt="demo" style="width: 600px">
 </div>
 
 ## Feature
@@ -15,7 +15,7 @@ Project Timer is a lightweight VS Code extension that tracks the time you spend 
 - **Visual Statistics**: Provides a comprehensive webview with charts and insights into your coding habits.
 
 <div align="center">
-    <img src="./resources/statistics.png" alt="Project Timer Statistics View">
+    <img src="./assets/statistics.png" alt="Project Timer Statistics View">
 </div>
 
 ## Usage
@@ -98,6 +98,7 @@ This extension contributes the following settings:
 - [x] Support VS Code remote window (e.g. SSH, Dev Containers).
 - [ ] support upgrade workspace folder to multi-root workspace.
 - [ ] Support time period statistics (weekly/monthly reports).
+- [ ] Support viewing statistics for all projects on device instead of current project only.
 
 ## Release Notes
 
