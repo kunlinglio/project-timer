@@ -39,6 +39,7 @@ export const STATUS_BAR_UPDATE_INTERVAL_MS = {
 /**
  * To avoid git extension not finishing scanning and cannot provide the correct Git remote URL.
  * And to reserve time for vscode to sync global state.
- * All caches are force-refreshed once
+ * All caches are force-refreshed after 5 sec, 10 sec, 20 sec, ..., 60 min.
  */
 export const FORCE_REFRESH_AFTER_STARTUP_MS = 5 * 1000; // 5 seconds
+export const FORCE_REFRESH_MAX_MS = 60 * 60 * 1000; // 60 minutes
