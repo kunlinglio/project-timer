@@ -96,7 +96,7 @@ This extension contributes the following settings:
 - [x] Support more identifiers to recognize project, e.g. workspace name / workspace folder / git repo url...
 - [x] Support project name customization.
 - [x] Support VS Code remote window (e.g. SSH, Dev Containers).
-- [ ] support upgrade workspace folder to multi-root workspace.
+- [ ] Support upgrade workspace folder to multi-root workspace.
 - [ ] Support time period statistics (weekly/monthly reports).
 - [ ] Support viewing statistics for all projects on device instead of current project only.
 
