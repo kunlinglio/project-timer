@@ -1,12 +1,13 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
 
 import * as refresher from '../../../utils/refresher';
 import * as logger from '../../../utils/logger';
 import * as config from '../../../utils/config';
 import { getFolderName, getFolderParentPath, getGitRemoteUrl, strictEq, isMultiRootWorkspace } from "../../../utils";
-import { MATCHINFO_REFRESH_INTERVAL_MS } from '../../../constants';
+import { MATCH_INFO_REFRESH_INTERVAL_MS } from '../../../constants';
 
-let _cache: MatchInfo | undefined;
+let _cache: MatchInfo[] | undefined;
 let update_time = 0;
 
 /**
@@ -14,13 +15,13 @@ let update_time = 0;
  */
 export interface MatchInfo {
     // Priority from high to low
-    gitRemotUrl?: string;
-    parentPath?: string; // allow undefined only for V1-migrated data
+    gitRemoteUrl?: string;
+    parentPath: string;
     folderName: string;
 }
 
 export function matchInfoEq(left: MatchInfo, right: MatchInfo): boolean {
-    if (left.gitRemotUrl !== right.gitRemotUrl) {
+    if (left.gitRemoteUrl !== right.gitRemoteUrl) {
         return false;
     }
     if (left.parentPath !== right.parentPath) {
@@ -38,7 +39,7 @@ export function matchInfoEq(left: MatchInfo, right: MatchInfo): boolean {
  */
 export function matchLocal(old: MatchInfo, current: MatchInfo): boolean {
     // Case 1: V1 compatible
-    if (old.parentPath === undefined && old.gitRemotUrl === undefined) {
+    if (old.parentPath === undefined && old.gitRemoteUrl === undefined) {
         // old is V1 migrated data
         if (old.folderName === current.folderName) {
             return true;
@@ -51,14 +52,14 @@ export function matchLocal(old: MatchInfo, current: MatchInfo): boolean {
         return true;
     }
     // Case 3: only add stronger info
-    if (!old.gitRemotUrl && current.gitRemotUrl &&
+    if (!old.gitRemoteUrl && current.gitRemoteUrl &&
         strictEq(old.parentPath, current.parentPath) &&
         old.folderName === current.folderName
     ) {
         return true;
     }
     // Case 4: rename or move but keep the git remote url
-    if (strictEq(old.gitRemotUrl, current.gitRemotUrl)) {
+    if (strictEq(old.gitRemoteUrl, current.gitRemoteUrl)) {
         return true;
     }
     // Others: keep the old data
@@ -70,7 +71,7 @@ export function matchLocal(old: MatchInfo, current: MatchInfo): boolean {
  * Call it when you want to check if data from other device (remote) can be counted as the same project.
  */
 export function matchRemote(remote: MatchInfo, current: MatchInfo): boolean {
-    if (strictEq(remote.gitRemotUrl, current.gitRemotUrl)) {
+    if (strictEq(remote.gitRemoteUrl, current.gitRemoteUrl)) {
         return true;
     }
     // Avoid compare absolute path through different devices
@@ -80,41 +81,47 @@ export function matchRemote(remote: MatchInfo, current: MatchInfo): boolean {
     return false;
 }
 
-export function getCurrentMatchInfo(): MatchInfo {
-    if (_cache && Date.now() - update_time < MATCHINFO_REFRESH_INTERVAL_MS) {
+export function getCurrentMatchInfo(): MatchInfo[] {
+    if (_cache && Date.now() - update_time < MATCH_INFO_REFRESH_INTERVAL_MS) {
         return _cache;
     }
-    if (isMultiRootWorkspace() && config.get().multiRootWorkspace.warningMessage.enable) {
-        logger.warn(`[Storage] Multi-root workspace detected.`);
-        vscode.window.showWarningMessage("Using multi-root workspace as a project. Project Timer may not work as expected.", "Ok", "Don't show again").then((selection) => {
-            if (selection === "Don't show again") {
-                config.set("multiRootWorkspace.warningMessage.enable", false);
+    const urlRemoteMap = new Map<string, string>(); // folder url -> remote url
+    const gitExtension = vscode.extensions.getExtension('vscode.git');
+    if (gitExtension) {
+        const git = gitExtension.exports.getAPI(1);
+        for (const repository of git.repositories) {
+            const remote = repository.state.remotes.find((r: any) => r.name === 'origin');
+            if (remote) {
+                urlRemoteMap.set(repository.rootUri.toString(), remote.fetchUrl || remote.pushUrl);
             }
-        });
+        }
+    } else {
+        logger.warn('Git extension not found, git remote url will not be included in match info.');
     }
-    const folderName = getFolderName();
-    if (!folderName) {
-        const err = new Error("No folder name found.");
-        logger.error(err);
-        throw err;
+    const folders = vscode.workspace.workspaceFolders;
+    if (!folders) {
+        logger.warn('No workspace folder found, match info will be empty.');
+        return [];
     }
-    const parentPath = getFolderParentPath();
-    if (!parentPath) {
-        const err = new Error("No folder parent path found.");
-        logger.error(err);
-        throw err;
-    }
-    _cache = {
-        folderName: folderName,
-        parentPath: parentPath,
-        gitRemotUrl: getGitRemoteUrl()
-    };
+    const infos: MatchInfo[] = folders.map(f => {
+        const url = urlRemoteMap.get(f.uri.toString());
+        return {
+            folderName: f.name,
+            parentPath: path.dirname(f.uri.fsPath),
+            gitRemoteUrl: url
+        };
+    });
+    _cache = infos;
     update_time = Date.now();
     return _cache;
 }
 
-export function init() {
+export function init(): vscode.Disposable {
     refresher.onRefresh(() => {
         _cache = undefined;
     });
+    const disposable = vscode.workspace.onDidChangeWorkspaceFolders(() => {
+        _cache = undefined;
+    });
+    return disposable;
 }

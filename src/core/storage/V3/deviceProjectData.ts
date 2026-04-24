@@ -14,29 +14,6 @@ export function constructDailyRecord(): DailyRecord {
     return { seconds: 0, languages: {}, files: {} };
 }
 
-
-/**
- * The self described data structure of data produced by one device and related to one project.
- * It should be atomic and has no relation with other key-value pairs, in order to guarantee consistency and atomicity.
- * This data structure does not support multi-root workspaces.
- * 
- * Stored at globalState[`timerStorageV2-{deviceId}-{projectUUID}`]
- */
-export interface DeviceProjectData {
-    readonly deviceId: string;
-    readonly projectUUID: string;
-
-    displayName?: string;
-    deviceName?: string;
-
-    matchInfo: MatchInfo;
-    history: Record<string, DailyRecord>; // date -> dailyRecord data
-}
-
-export function getDeviceProjectDataKey(data: DeviceProjectData): string {
-    return `timerStorageV2-${data.deviceId}-${data.projectUUID}`;
-}
-
 export function mergeHistory(a: Record<string, DailyRecord>, b: Record<string, DailyRecord>): Record<string, DailyRecord> {
     const merged: Record<string, DailyRecord> = copy(a);
     for (const [date, sourceRecord] of Object.entries(b)) {
@@ -57,4 +34,50 @@ export function mergeHistory(a: Record<string, DailyRecord>, b: Record<string, D
         }
     }
     return merged;
+}
+
+/**
+ * The self described data structure of data produced by one device and related to one folder.
+ * An folder may be a project itself, thus, there will be no a DeviceProjectData entry.
+ * It should be atomic and has no relation with other key-value pairs, in order to guarantee consistency and atomicity.
+ * 
+ * Stored at globalState[`timerStorageV3-{deviceId}-folder_{projectUUID}`]
+ */
+export interface DeviceFolderData {
+    readonly deviceId: string;
+    readonly folderUUID: string;
+
+    displayName?: string; // Only if folder itself is a project
+    deviceName: string;
+
+    matchInfo: MatchInfo;
+    history: Record<string, DailyRecord>; // date -> dailyRecord data
+}
+
+export function getDeviceFolderDataKey(data: DeviceFolderData): string {
+    return `timerStorageV3-${data.deviceId}-folder_${data.folderUUID}`;
+}
+
+/**
+ * The data structure of data produced by one device and related to one project, which may contain multiple folders.
+ * This entry is optional and only used for multi-root workspace.
+ * If the workspace is anonymous (no .code-workspace file), the workspace will be regard as temporary project, and will not have a DeviceProjectData entry.
+ * 
+ * Stored at globalState[`timerStorageV3-{deviceId}-project_{projectUUID}`]
+ */
+export interface DeviceProjectData {
+    readonly projectUUID: string;
+    readonly deviceId: string;
+
+    displayName?: string;
+    deviceName: string;
+
+    workspaceFilePath: string;
+    workspaceFileHash: string;
+
+    folderUUIDs: string[]; // Only used for view statistics, has no consistency guarantee
+}
+
+export function getDeviceProjectDataKey(data: DeviceProjectData): string {
+    return `timerStorageV3-${data.deviceId}-project_${data.projectUUID}`;
 }

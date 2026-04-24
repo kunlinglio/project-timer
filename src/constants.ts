@@ -19,7 +19,7 @@ export const FLUSH_INTERVAL_MS = 60 * 1000; // 60 seconds
  * Automatically resets on workspace changes.
  * Only relevant when a Git repository is added mid-session; workspace changes trigger an immediate reset regardless.
  */
-export const MATCHINFO_REFRESH_INTERVAL_MS = 60 * 1000; // 60 seconds
+export const MATCH_INFO_REFRESH_INTERVAL_MS = 60 * 1000; // 60 seconds
 
 /**
  * Throttle interval for re-rendering the status bar hover menu content.

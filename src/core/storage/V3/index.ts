@@ -3,14 +3,14 @@ import * as crypto from 'crypto';
 import * as os from 'os';
 
 import { ProjectTimeInfo as V1Data } from '../V1';
-import { copy } from '../../../utils';
+import { copy, isMultiRootWorkspace } from '../../../utils';
 import * as context from '../../../utils/context';
 import * as refresher from '../../../utils/refresher';
 import * as logger from '../../../utils/logger';
 import * as config from '../../../utils/config';
 
-import { DeviceProjectData, mergeHistory, getDeviceProjectDataKey, constructDailyRecord } from './deviceProjectData';
-import { getCurrentMatchInfo, matchInfoEq, matchLocal, matchRemote, init as matchInfoInit } from './matchInfo';
+import { DeviceProjectData, mergeHistory, getDeviceProjectDataKey, constructDailyRecord, DeviceFolderData, getDeviceFolderDataKey } from './deviceProjectData';
+import { getCurrentMatchInfo, matchInfoEq, matchLocal, matchRemote, init as matchInfoInit, MatchInfo } from './matchInfo';
 import { getTotalSeconds, getTodaySeconds, getTodayLocalSeconds, init as CalculatorInit } from './calculator';
 import { FLUSH_INTERVAL_MS } from '../../../constants';
 
@@ -19,66 +19,35 @@ import { FLUSH_INTERVAL_MS } from '../../../constants';
  * The version 3 of data structure and storage functions.
  */
 
-let _cache: DeviceProjectData | undefined;
+let _cache: ProjectData | undefined;
 let lastFlush: number = Date.now();
 
-export { constructDailyRecord, getTodaySeconds, getTotalSeconds, getTodayLocalSeconds, mergeHistory };
-export type { DeviceProjectData };
-
-function migrateV1Data(v1data: V1Data) {
-    const projectUUID = crypto.randomUUID();
-    const deviceId = vscode.env.machineId;
-    const deviceProjectData: DeviceProjectData = {
-        deviceId: deviceId,
-        projectUUID: projectUUID,
-        displayName: undefined,
-        deviceName: os.hostname(),
-        matchInfo: {
-            folderName: v1data.project_name,
-            parentPath: undefined,
-            gitRemotUrl: undefined
-        },
-        history: v1data.history
-    };
-    return deviceProjectData;
-}
-
-function removeAllV1Data() {
-    const ctx = context.get();
-    for (const key of ctx.globalState.keys()) {
-        if (key.startsWith(`timerStorage-`)) {
-            ctx.globalState.update(key, undefined);
-        }
+type ProjectData =
+    | {
+        type: "multi-root";
+        projectData: DeviceProjectData;
+        folderData: DeviceFolderData[];
     }
-}
+    | {
+        type: "single-root";
+        folderData: DeviceFolderData;
+    }
+
+export { constructDailyRecord, getTodaySeconds, getTotalSeconds, getTodayLocalSeconds, mergeHistory };
+export type { DeviceProjectData, ProjectData };
 
 export function init(): vscode.Disposable {
-    // 1. migrate V1 data
+    // migration
     logger.log(`[Storage] Migrating V1 data to V2...`);
-    const ctx = context.get();
-    let migratedCount = 0;
-    for (const key of ctx.globalState.keys()) {
-        if (key.startsWith(`timerStorage-`)) {
-            const data = ctx.globalState.get<V1Data>(key);
-            if (data) {
-                const deviceProjectData = migrateV1Data(data);
-                set(deviceProjectData);
-                migratedCount++;
-            }
-        }
-    }
-    if (migratedCount > 0) {
-        logger.log(`[Storage] Migration complete. Migrated ${migratedCount} items.`);
-        logger.log(`[Storage] Deleting old V1 data...`);
-        removeAllV1Data();
-        logger.log(`[Storage] Delete success.`);
-    } else {
-        logger.log(`[Storage] Nothing to migrate.`);
-    }
-    // 2. init match info cache
+    // TODO: migrate V1 to V2
+    logger.log(`[Storage] Migration V2 data to V3...`);
+    // TODO: migrate V2 to V3
+    logger.log(`[Storage] Migration completed!`);
+
+    // init match info cache
     matchInfoInit();
     CalculatorInit();
-    // 3. register on refresh
+    // register on refresh
     refresher.onRefresh(() => {
         flush();
     });
@@ -90,6 +59,7 @@ export function init(): vscode.Disposable {
 }
 
 function updateSyncKeys() {
+    // TODO: support V3 data structure
     const ctx = context.get();
     const cfg = config.get();
     const keysForSync: string[] = [];
@@ -105,56 +75,22 @@ function updateSyncKeys() {
 }
 
 /**
- * Get data for current project, current device.
+ * Get data for current folder, current device.
  */
-export function get(): DeviceProjectData {
-    const matchInfo = getCurrentMatchInfo();
-    // check cache
-    if (_cache) {
-        // cache hit
-        const cacheMatchInfo = _cache.matchInfo;
-        if (!matchLocal(cacheMatchInfo, matchInfo)) {
-            logger.warn(`[Storage] Cache mismatch: expected ${JSON.stringify(cacheMatchInfo)}, got ${JSON.stringify(matchInfo)}\nTry flush cache to update.`);
-            flush();
-        }
-        if (!matchInfoEq(cacheMatchInfo, matchInfo)) {
-            // need update match info
-            _cache.matchInfo = matchInfo;
-            set(_cache);
-        }
-        return _cache;
-    }
+async function getFolderData(matchInfo: MatchInfo): Promise<DeviceFolderData> {
     const deviceId = vscode.env.machineId;
     const ctx = context.get();
     const cfg = config.get();
     // traverse all v2 data in global state to find the match one
-    const matched: DeviceProjectData[] = [];
+    const matched: DeviceFolderData[] = [];
     for (const key of ctx.globalState.keys()) {
-        if (key.startsWith(`timerStorageV2-${deviceId}-`)) {
-            let data = ctx.globalState.get(key) as DeviceProjectData;
+        if (key.startsWith(`timerStorageV3-${deviceId}-folder_`)) {
+            let data = ctx.globalState.get(key) as DeviceFolderData;
             if (matchLocal(data.matchInfo, matchInfo)) {
-                // upgrade old data: add device name
-                if (data.deviceName === undefined || data.deviceName !== os.hostname()) {
-                    data.deviceName = os.hostname();
-                    set(data);
-                }
-                // upgrade old data: add sync config
-                const syncKey = `${data.deviceId}-${data.projectUUID}`;
-                if (cfg.synchronization.syncedProjects[syncKey] === undefined) {
-                    const newSyncedProjects = { ...cfg.synchronization.syncedProjects };
-                    newSyncedProjects[syncKey] = {
-                        deviceId: data.deviceId,
-                        projectUUID: data.projectUUID,
-                        deviceName: data.deviceName,
-                        projectName: data.displayName || data.matchInfo.folderName,
-                        synced: cfg.synchronization.enabled
-                    };
-                    config.set(`synchronization.syncedProjects`, newSyncedProjects).catch(e => logger.error(`[Storage] Failed to sync config: ${e}`));
-                }
                 if (!matchInfoEq(data.matchInfo, matchInfo)) {
                     // need update match info
                     data.matchInfo = matchInfo;
-                    set(data);
+                    await setFolder(data);
                 }
                 matched.push(data);
             }
@@ -162,31 +98,29 @@ export function get(): DeviceProjectData {
     }
     if (matched.length === 0) {
         // not found, create new one
-        const projectUUID = crypto.randomUUID();
-        const data: DeviceProjectData = {
+        const folderUUID = crypto.randomUUID();
+        const data: DeviceFolderData = {
             deviceId: deviceId,
-            projectUUID: projectUUID,
+            folderUUID: folderUUID,
             displayName: undefined,
             deviceName: os.hostname(),
             matchInfo: matchInfo,
             history: {}
         };
-        set(data);
-        const syncKey = `${data.deviceId}-${data.projectUUID}`;
+        await setFolder(data);
+        const syncKey = `${data.deviceId}-${data.folderUUID}`;
         const newSyncedProjects = { ...cfg.synchronization.syncedProjects };
         newSyncedProjects[syncKey] = {
             deviceId: data.deviceId,
-            projectUUID: data.projectUUID,
+            projectUUID: data.folderUUID,
             deviceName: data.deviceName,
             projectName: data.displayName || data.matchInfo.folderName,
             synced: cfg.synchronization.enabled
         };
         config.set(`synchronization.syncedProjects`, newSyncedProjects).catch(e => logger.error(`[Storage] Failed to sync config: ${e}`));
-        _cache = data;
         return data;
     }
     else if (matched.length === 1) {
-        _cache = matched[0];
         return matched[0];
     } else {
         // found more than 1, need merge
@@ -199,11 +133,11 @@ export function get(): DeviceProjectData {
         const newSyncedProjects = { ...cfg.synchronization.syncedProjects };
         let needUpdateConfig = false;
         for (let i = 1; i < matched.length; i++) {
-            const key = getDeviceProjectDataKey(matched[i]);
+            const key = getDeviceFolderDataKey(matched[i]);
             const ctx = context.get();
             ctx.globalState.update(key, undefined);
             // update config
-            const syncKey = `${matched[i].deviceId}-${matched[i].projectUUID}`;
+            const syncKey = `${matched[i].deviceId}-${matched[i].folderUUID}`;
             if (newSyncedProjects[syncKey]) {
                 delete newSyncedProjects[syncKey];
                 needUpdateConfig = true;
@@ -215,10 +149,33 @@ export function get(): DeviceProjectData {
         // 3. update match info
         merged.matchInfo = getCurrentMatchInfo();
         merged.displayName = getCurrentMatchInfo().folderName;
-        set(merged);
-        _cache = merged;
+        await setFolder(merged);
         return merged;
     }
+}
+
+/**
+ * Update DeviceFolderData without cache.
+ */
+async function setFolder(data: DeviceFolderData) {
+    if (data.deviceId !== vscode.env.machineId) {
+        const err = new Error(`Device ID mismatch: expected ${vscode.env.machineId}, got ${data.deviceId}`);
+        logger.error(err);
+        throw err;
+    }
+    data = copy(data);
+    const ctx = context.get();
+    const key = getDeviceFolderDataKey(data);
+    try {
+        await ctx.globalState.update(key, data);
+        updateSyncKeys();
+    } catch (error: any) {
+        logger.error(`[Storage] Error updating folder data: ${error}`);
+    }
+}
+
+export function get(): DeviceProjectData {
+    const matchInfo = getCurrentMatchInfo();
 }
 
 export function set(data: DeviceProjectData) {
