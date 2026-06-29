@@ -3,7 +3,7 @@
   "displayName": "Project Timer",
   "icon": "./assets/icon.png",
   "description": "Track your coding time automatically with detailed language, project and file-level insights.",
-  "version": "0.5.3",
+  "version": "0.5.4",
   "repository": {
     "type": "git",
     "url": "https://github.com/KunlingLio/project-timer.git"

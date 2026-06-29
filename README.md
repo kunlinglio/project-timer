@@ -106,6 +106,10 @@ Distributed under the terms of the Apache 2.0 license.
 
 ## Release Notes
 
+### 0.5.4
+- Fixed unexpected horizontal scrollbar in statistics page chart.
+- Fixed the issue that the bottom card of statistics page is wrongly laid out when there is no device data.
+
 ### 0.5.3
 - **Refactored statistics page implementation**:
     - Fixed a bug where the statistics page displayed hidden scrollbars or clipped content on small window heights.

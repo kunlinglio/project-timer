@@ -2,7 +2,7 @@
 
 All notable changes to the "Project Timer" extension will be documented in this file.
 
-## [Unreleased]
+## [0.5.4] - 2026-06-29
 ### Fixed
 - Fixed unexpected horizontal scrollbar in statistics page chart.
 - Fixed the issue that the bottom card of statistics page is wrongly laid out when there is no device data.
